@@ -1,6 +1,6 @@
 // 화면 구성: #home(내 차 위치) #park(주차 기록) #places #place/id #cars #car/id
 import * as S from './store.js';
-import { mountMap, gridLabel } from './map.js';
+import { mountMap } from './map.js';
 import { shrink, rotate } from './img.js';
 
 const $ = (q, el = document) => el.querySelector(q);
@@ -51,14 +51,7 @@ function where(r) {
   const p = place(r.placeId), f = floor(p, r.floorId);
   return { p, f, title: `${p?.name || '(지운 장소)'} · ${f?.name || ''}` };
 }
-function spotText(r) {
-  const f = floor(place(r.placeId), r.floorId);
-  const parts = [];
-  if (r.spot) parts.push(r.spot);
-  else if (f && !f.map && r.x != null) parts.push(`칸 ${gridLabel(r.x, r.y)}`);
-  if (r.memo) parts.push(r.memo);
-  return parts.join(' · ');
-}
+const spotText = r => [r.spot, r.memo].filter(Boolean).join(' · ');
 
 let maps = [];
 function clearMaps() { maps.forEach(m => m.destroy()); maps = []; }
@@ -111,13 +104,23 @@ async function renderHome() {
   if (r) {
     const w = where(r);
     const st = spotText(r);
-    body = `<div class="card where">
-        <div class="w-car"><i class="dot" style="background:${c.tint}"></i>${esc(carLabel(c))}</div>
+    const showMap = r.x != null && w.f?.map;
+    const time = `<div class="w-time">${ago(r.at)} · ${when(r.at)} ${r.ev ? '충전 시작' : '주차'}</div>`;
+    const carLine = `<div class="w-car"><i class="dot" style="background:${c.tint}"></i>${esc(carLabel(c))}</div>`;
+    // 약도 사진이 있으면 약도에 핀, 없으면 층·번호를 크게
+    body = showMap ? `<div class="card where">${carLine}
         <div class="w-title">${esc(w.p?.name || '(지운 장소)')} <span class="floor">${esc(w.f?.name || '')}</span>${r.ev ? '<span class="ev-badge">⚡ 충전</span>' : ''}</div>
-        ${st ? `<div class="w-spot">${esc(st)}</div>` : ''}
-        <div class="w-time">${ago(r.at)} · ${when(r.at)} ${r.ev ? '충전 시작' : '주차'}</div>
+        ${st ? `<div class="w-spot">${esc(st)}</div>` : ''}${time}
       </div>
-      ${r.x != null ? `<div class="map-wrap"><div id="m-home" class="mapbox tall"></div>${w.f && !w.f.map ? '<div class="map-note">약도 사진이 없어 칸으로 표시했어요</div>' : ''}</div>` : ''}
+      <div class="map-wrap"><div id="m-home" class="mapbox tall"></div></div>`
+      : `<div class="card where big">${carLine}
+        <div class="w-place">${esc(w.p?.name || '(지운 장소)')}</div>
+        <div class="w-floor">${esc(w.f?.name || '')}</div>
+        ${r.ev ? '<div><span class="ev-badge lg">⚡ 전기차 충전</span></div>' : ''}
+        ${r.spot ? `<div class="w-bigspot">${esc(r.spot)}</div>` : ''}
+        ${r.memo ? `<div class="w-memo">${esc(r.memo)}</div>` : ''}${time}
+      </div>`;
+    body += `
       ${r.photo ? `<button class="photo-btn" id="see-photo"><img id="photo-thumb" alt="주차한 자리 사진"><span>주차한 자리 사진</span></button>` : ''}
       <div class="row-btns mt"><a class="btn" href="#park">다시 기록</a><button class="btn" id="unpark">출차했어요</button></div>`;
   } else {
@@ -152,7 +155,7 @@ async function renderHome() {
     const u = await S.imageUrl(r.photo);
     if (u) { $('#photo-thumb').src = u; $('#see-photo').onclick = () => viewPhoto(u); }
   }
-  if (r && r.x != null && $('#m-home')) {
+  if ($('#m-home')) {
     const w = where(r);
     await addMap($('#m-home'), { mapId: w.f?.map, pin: { x: r.x, y: r.y }, tint: c.tint, ev: r.ev, focus: true });
   }
@@ -183,6 +186,8 @@ async function renderPark() {
   if (!floor(p, draft.floorId)) draft.floorId = p.floors[0]?.id || null;
   const f = floor(p, draft.floorId);
   const c = car(draft.carId);
+  // 기둥 번호가 필요 없는 주차장: 층만 고르고 저장
+  const simple = p.floorOnly && !draft.more && !draft.spot && !draft.memo && !draft.photo;
 
   app.innerHTML = `<div class="dtop"><a class="back" href="#home">${I.back}취소</a><b>주차 위치 기록</b><span style="width:56px"></span></div>
     ${d.cars.length > 1 ? `<div class="label">차</div><div class="chips">${d.cars.map(x =>
@@ -193,14 +198,15 @@ async function renderPark() {
     <div class="label">층</div>
     <div class="chips floors">${p.floors.map(x => `<button class="chip ${x.id === draft.floorId ? 'on' : ''}" data-floor="${x.id}">${esc(x.name)}${x.ev ? '<span class="bolt" title="충전기 있음">⚡</span>' : ''}</button>`).join('')}
       ${p.floors.length ? '' : `<a class="chip add" href="#place/${p.id}">층 추가</a>`}</div>
-    ${f ? `<div class="label">약도에서 내 차 자리를 눌러 주세요</div>
-      <div class="map-wrap"><div id="m-park" class="mapbox"></div>
-        ${f.map ? '' : `<div class="map-note warn">이 층 약도 사진이 아직 없어요. 칸으로 대신 표시해요. <button class="link sm" id="add-map">${I.cam}약도 사진 넣기</button></div>`}
-      </div>
-      <div class="picked" id="picked">${draft.x != null ? '위치를 찍었어요 ✓' : '아직 위치를 안 찍었어요'}</div>` : ''}
+    ${simple ? `<p class="simple-note">층만 기억하면 되는 주차장이에요. 층을 고르고 저장하세요.</p>`
+    : f?.map ? `<div class="label">약도에서 내 차 자리를 눌러 주세요 <span class="muted small">(선택)</span></div>
+      <div class="map-wrap"><div id="m-park" class="mapbox"></div></div>
+      <div class="picked ${draft.x != null ? 'ok' : ''}" id="picked">${draft.x != null ? '위치를 찍었어요 ✓' : '아직 위치를 안 찍었어요'}</div>`
+    : f ? `<button class="map-empty" id="add-map">${I.cam}<span><b>${esc(f.name)} 약도 사진 넣기</b><span>엘리베이터 앞 주차장 안내도를 찍으면 약도에 위치를 표시할 수 있어요. 없어도 층·기둥 번호로 기록돼요.</span></span></button>` : ''}
     <button class="ev-toggle ${draft.ev ? 'on' : ''}" id="ev" aria-pressed="${draft.ev}">
-      <span class="ev-ic">⚡</span><span><b>전기차 충전 중</b><span>${f?.ev ? '이 층에 충전기가 있어요 · ' : ''}충전기 번호·기둥 번호는 아래에 적어도, 안 적어도 돼요</span></span><i class="sw"></i>
+      <span class="ev-ic">⚡</span><span><b>전기차 충전 중</b><span>${f?.ev ? '이 층에 충전기가 있어요 · ' : ''}${simple ? '충전만 표시해도 돼요' : '충전기 번호·기둥 번호는 아래에 적어도, 안 적어도 돼요'}</span></span><i class="sw"></i>
     </button>
+    ${simple ? `<button class="link mt" id="more">${I.plus}기둥 번호·메모·사진도 남기기</button>` : `
     <div class="label">기둥·구역·충전기 번호 <span class="muted small">(선택)</span></div>
     <input class="inp" id="spot" placeholder="예: C-12, 3번 엘리베이터 앞" value="${esc(draft.spot)}">
     ${d.settings.spots.length ? `<div class="chips mini">${d.settings.spots.map(s => `<button class="chip sm" data-spot="${esc(s)}">${esc(s)}</button>`).join('')}</div>` : ''}
@@ -208,28 +214,29 @@ async function renderPark() {
     <input class="inp" id="memo" placeholder="예: 기둥 옆, 출구 쪽" value="${esc(draft.memo)}">
     <div class="label">자리 사진 <span class="muted small">(선택 · 기둥 번호가 보이게)</span></div>
     <div class="row-btns"><button class="btn" id="take">${I.cam}${draft.photo ? '사진 다시 찍기' : '사진 찍기'}</button></div>
-    ${draft.photo ? `<img class="draft-photo" id="draft-photo" alt="자리 사진">` : ''}
+    ${draft.photo ? `<img class="draft-photo" id="draft-photo" alt="자리 사진">` : ''}`}
     <button class="btn pri block big mt2" id="save">저장</button>`;
 
   $$('[data-car]').forEach(b => b.onclick = () => { draft.carId = b.dataset.car; renderPark(); });
   $$('[data-place]').forEach(b => b.onclick = () => {
     const np = place(b.dataset.place);
     const last = [d.parks[draft.carId], ...d.history].find(h => h && h.placeId === np.id);
-    Object.assign(draft, { placeId: np.id, floorId: floor(np, last?.floorId)?.id || np.floors[0]?.id || null, x: null, y: null });
+    Object.assign(draft, { placeId: np.id, floorId: floor(np, last?.floorId)?.id || np.floors[0]?.id || null, x: null, y: null, more: false });
     renderPark();
   });
   $$('[data-floor]').forEach(b => b.onclick = () => { draft.floorId = b.dataset.floor; draft.x = draft.y = null; renderPark(); });
   $$('[data-spot]').forEach(b => b.onclick = () => { draft.spot = b.dataset.spot; $('#spot').value = draft.spot; });
-  $('#spot').oninput = e => { draft.spot = e.target.value; };
+  $('#more')?.addEventListener('click', () => { draft.more = true; renderPark(); });
+  if ($('#spot')) $('#spot').oninput = e => { draft.spot = e.target.value; };
   $('#ev').onclick = e => {
     draft.ev = !draft.ev;
     const b = e.currentTarget;
     b.classList.toggle('on', draft.ev); b.setAttribute('aria-pressed', draft.ev);
     parkMap?.setEv(draft.ev);
   };
-  $('#memo').oninput = e => { draft.memo = e.target.value; };
+  if ($('#memo')) $('#memo').oninput = e => { draft.memo = e.target.value; };
   $('#add-map')?.addEventListener('click', async () => { if (await setFloorMap(p, f)) renderPark(); });
-  $('#take').onclick = async () => {
+  if ($('#take')) $('#take').onclick = async () => {
     const file = await pickFile(true);
     if (!file) return;
     if (draft.photo) S.dropImage(draft.photo);
@@ -242,7 +249,6 @@ async function renderPark() {
   }
   $('#save').onclick = () => {
     if (!f) { toast('층을 먼저 만들어 주세요'); return; }
-    if (draft.x == null && !draft.ev && !draft.spot.trim() && !draft.photo) { toast('약도에서 위치를 눌러 주세요'); return; }
     S.park(draft.carId, { placeId: p.id, floorId: f.id, x: draft.x, y: draft.y, ev: draft.ev,
       spot: draft.spot.trim(), memo: draft.memo.trim(), photo: draft.photo, at: Date.now() });
     S.setSetting('carId', draft.carId);
@@ -251,13 +257,13 @@ async function renderPark() {
     location.hash = '#home';
   };
   parkMap = null;
-  if (f) {
+  if (f?.map) {
     parkMap = await addMap($('#m-park'), {
       mapId: f.map, editable: true, tint: c.tint, ev: draft.ev,
       pin: draft.x != null ? { x: draft.x, y: draft.y } : null,
       onPick: (x, y) => {
         draft.x = x; draft.y = y;
-        $('#picked').textContent = f.map ? '위치를 찍었어요 ✓' : `칸 ${gridLabel(x, y)}에 찍었어요 ✓`;
+        $('#picked').textContent = '위치를 찍었어요 ✓';
         $('#picked').classList.add('ok');
       },
     });
@@ -271,6 +277,12 @@ async function setFloorMap(p, f) {
   toast('사진을 넣는 중…');
   const old = f.map;
   f.map = await S.putImage(await shrink(file, 2200));
+  // 약도가 바뀌면 예전에 찍은 위치는 맞지 않으니 지운다
+  const d = D();
+  const clear = r => { if (r && r.floorId === f.id) r.x = r.y = null; };
+  Object.values(d.parks).forEach(clear);
+  d.history.forEach(clear);
+  if (draft?.floorId === f.id) draft.x = draft.y = null;
   S.savePlace(p);
   if (old) S.sweepImages();
   toast(`${f.name} 약도를 넣었어요`);
@@ -314,16 +326,18 @@ function renderPlaceNew() {
     </div>
     <input class="inp" id="fl" placeholder="쉼표로 구분 (예: 지상, B1, B2)" value="B1,B2">
     <p class="muted small">층 이름은 나중에 바꾸거나 더할 수 있어요.</p>
+    <label class="check"><input type="checkbox" id="fo"><span><b>층만 기억하면 돼요</b><span>기둥 번호까지는 필요 없는 주차장 (기록할 때 층만 고르면 끝)</span></span></label>
     <button class="btn pri block big mt2" id="ok">만들기</button>`;
   $$('[data-q]').forEach(b => b.onclick = () => { $('#fl').value = b.dataset.q; });
   $('#ok').onclick = () => {
     const name = $('#nm').value.trim();
     if (!name) { toast('이름을 적어 주세요'); $('#nm').focus(); return; }
     const floors = $('#fl').value.split(/[,\s]+/).map(s => s.trim()).filter(Boolean).map(n => ({ id: S.uid(), name: n, map: null }));
-    const p = { id: S.uid(), name, note: '', floors };
+    const p = { id: S.uid(), name, note: '', floors, floorOnly: $('#fo').checked };
     S.savePlace(p);
     if (draft) { draft.placeId = p.id; draft.floorId = floors[0]?.id || null; draft.x = draft.y = null; }
-    location.hash = '#place/' + p.id;
+    // 층만 쓰는 곳은 약도 사진이 필요 없으니 바로 기록으로
+    location.hash = draft && p.floorOnly ? '#park' : '#place/' + p.id;
   };
   $('#nm').focus();
 }
@@ -334,13 +348,14 @@ async function renderPlace(id) {
   app.innerHTML = `<div class="dtop"><a class="back" href="${draft ? '#park' : '#places'}">${I.back}${draft ? '기록으로' : '주차장'}</a><b></b><span style="width:56px"></span></div>
     <div class="label">이름</div><input class="inp" id="nm" value="${esc(p.name)}">
     <div class="label">메모 <span class="muted small">(선택)</span></div><input class="inp" id="nt" value="${esc(p.note)}" placeholder="예: 정문 쪽 입구로 들어감">
+    <label class="check"><input type="checkbox" id="fo" ${p.floorOnly ? 'checked' : ''}><span><b>층만 기억하면 돼요</b><span>기록할 때 기둥 번호·약도 칸을 숨기고 층만 고르게 해요</span></span></label>
     <div class="sec"><h2>층별 약도</h2></div>
     ${p.floors.map((f, i) => `<div class="card floor-card">
       <div class="fc-head"><input class="inp fl-name" data-i="${i}" value="${esc(f.name)}" aria-label="층 이름">
         <button class="link sm" data-up="${i}" ${i ? '' : 'disabled'} aria-label="위로">▲</button>
         <button class="link sm danger" data-del="${i}">삭제</button></div>
       <label class="fc-ev"><input type="checkbox" data-ev="${i}" ${f.ev ? 'checked' : ''}>⚡ 전기차 충전기 있는 층</label>
-      ${f.map ? `<img class="fc-map" data-map="${i}" alt="${esc(f.name)} 약도">` : `<div class="fc-empty">약도 사진 없음 — 칸으로 표시돼요</div>`}
+      ${f.map ? `<img class="fc-map" data-map="${i}" alt="${esc(f.name)} 약도">` : `<div class="fc-empty">약도 사진 없음 — 층·기둥 번호로 기록돼요</div>`}
       <div class="row-btns"><button class="btn sm" data-photo="${i}">${I.cam}${f.map ? '사진 바꾸기' : '약도 사진 넣기'}</button>
         ${f.map ? `<button class="btn sm" data-rot="${i}">${I.rot}돌리기</button>` : ''}</div>
     </div>`).join('')}
@@ -349,6 +364,7 @@ async function renderPlace(id) {
 
   $('#nm').onchange = e => { p.name = e.target.value.trim() || p.name; S.savePlace(p); };
   $('#nt').onchange = e => { p.note = e.target.value.trim(); S.savePlace(p); };
+  $('#fo').onchange = e => { p.floorOnly = e.target.checked; S.savePlace(p); };
   $$('.fl-name').forEach(inp => inp.onchange = () => { const v = inp.value.trim(); if (v) { p.floors[+inp.dataset.i].name = v; S.savePlace(p); } });
   $$('[data-up]').forEach(b => b.onclick = () => { const i = +b.dataset.up; [p.floors[i - 1], p.floors[i]] = [p.floors[i], p.floors[i - 1]]; S.savePlace(p); renderPlace(id); });
   $$('[data-del]').forEach(b => b.onclick = () => {

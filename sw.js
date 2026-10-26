@@ -1,5 +1,5 @@
 // 내 차 어디? 서비스 워커: 앱 파일을 미리 저장해 지하(신호 없음)에서도 열리게 한다
-const VERSION = "park-v3";
+const VERSION = "park-v5";
 const CORE = ["./", "index.html", "js/app.js", "js/store.js", "js/map.js", "js/img.js", "manifest.webmanifest", "icons/icon-192-v2.png", "icons/icon-512-v2.png", "icons/apple-touch-icon-v2.png"];
 
 self.addEventListener("install", e => {

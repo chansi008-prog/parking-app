@@ -1,29 +1,10 @@
 // 약도 보기: 손가락 두 개로 확대, 한 손가락으로 이동, 탭으로 위치 찍기.
 // 위치는 약도 크기에 대한 비율(0~1)로 다룬다.
 
-const GRID_COLS = 'ABCDEFGH';
-const GRID_ROWS = 10;
-
-// 약도 사진이 없을 때 쓰는 칸 그림
-function gridSvg() {
-  const w = 800, h = 600, cw = w / GRID_COLS.length, rh = h / GRID_ROWS;
-  let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"><rect width="${w}" height="${h}" fill="#EEF1F5"/>`;
-  for (let c = 0; c < GRID_COLS.length; c++) for (let r = 0; r < GRID_ROWS; r++) {
-    s += `<rect x="${c * cw + 3}" y="${r * rh + 3}" width="${cw - 6}" height="${rh - 6}" rx="6" fill="#fff" stroke="#D5DAE2"/>`;
-    s += `<text x="${c * cw + cw / 2}" y="${r * rh + rh / 2 + 7}" text-anchor="middle" font-size="20" fill="#A3AAB6" font-family="sans-serif">${GRID_COLS[c]}${r + 1}</text>`;
-  }
-  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s + '</svg>');
-}
-export function gridLabel(x, y) {
-  const c = Math.min(GRID_COLS.length - 1, Math.max(0, Math.floor(x * GRID_COLS.length)));
-  const r = Math.min(GRID_ROWS - 1, Math.max(0, Math.floor(y * GRID_ROWS)));
-  return GRID_COLS[c] + (r + 1);
-}
-
 const PIN = `<svg viewBox="0 0 40 52" width="40" height="52"><path d="M20 50C20 50 37 31 37 18A17 17 0 0 0 3 18C3 31 20 50 20 50Z" fill="var(--pin,#E0362C)" stroke="#fff" stroke-width="3"/><circle class="pin-dot" cx="20" cy="18" r="6.5" fill="#fff"/><path class="pin-ev" d="M22 7 13 20h6l-2 10 9-13h-6z" fill="#FFD43B" stroke="#fff" stroke-width="1"/></svg>`;
 
 /**
- * mountMap(host, { src, pin:{x,y}|null, editable, tint, ev(충전 표시), onPick(x,y), focus })
+ * mountMap(host, { src(약도 사진), pin:{x,y}|null, editable, tint, ev(충전 표시), onPick(x,y), focus })
  * 돌려주는 값: { setPin(x,y), setEv(on), focusPin(), fit(), destroy() }
  */
 export function mountMap(host, opts) {
@@ -84,7 +65,7 @@ export function mountMap(host, opts) {
     fit();
     if (opts.focus && pin) focusPin();
   };
-  img.src = opts.src || gridSvg();
+  img.src = opts.src;
 
   // ---- 손가락 처리 ----
   const pts = new Map();
