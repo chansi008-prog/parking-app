@@ -8,11 +8,13 @@ const KEY = 'data';
 
 export const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
+const HS_EV = ['B2', 'B3', 'B4'];
+
 function seedPlace() {
-  // 부산 송도 힐스테이트 이진베이시티: 지하 1~6층 주차장
+  // 부산 송도 힐스테이트 이진베이시티: 지하 1~6층 주차장, 전기차 충전기는 B2~B4
   return {
     id: 'hillstate', name: '송도 힐스테이트', note: '이진베이시티',
-    floors: ['B1', 'B2', 'B3', 'B4', 'B5', 'B6'].map(n => ({ id: 'hs-' + n, name: n, map: null })),
+    floors: ['B1', 'B2', 'B3', 'B4', 'B5', 'B6'].map(n => ({ id: 'hs-' + n, name: n, map: null, ev: HS_EV.includes(n) })),
   };
 }
 
@@ -20,10 +22,10 @@ function emptyData() {
   return {
     version: 1,
     cars: [],            // { id, model, color, plate, tint }
-    places: [seedPlace()], // { id, name, note, floors: [{ id, name, map(사진 id) }] }
-    parks: {},           // carId → { placeId, floorId, x, y, spot, memo, photo, at }
+    places: [seedPlace()], // { id, name, note, floors: [{ id, name, map(사진 id), ev(충전기 있는 층) }] }
+    parks: {},           // carId → { placeId, floorId, x, y, ev(충전 중), spot, memo, photo, at }
     history: [],         // 지난 주차 기록 (최근 순)
-    settings: { carId: null, placeId: 'hillstate', spots: [], lastBackupAt: null },
+    settings: { carId: null, placeId: 'hillstate', spots: [], lastBackupAt: null, evSeeded: true },
   };
 }
 
@@ -45,6 +47,11 @@ function normalize(d) {
   ['cars', 'places', 'history'].forEach(k => { if (!Array.isArray(out[k])) out[k] = []; });
   if (!out.parks || typeof out.parks !== 'object') out.parks = {};
   if (!Array.isArray(out.settings.spots)) out.settings.spots = [];
+  // 충전 기능 전에 만든 기록: 힐스테이트 충전기 층 표시
+  if (!d.settings?.evSeeded) {
+    out.places.find(p => p.id === 'hillstate')?.floors.forEach(f => { if (HS_EV.includes(f.name)) f.ev = true; });
+    out.settings.evSeeded = true;
+  }
   return out;
 }
 

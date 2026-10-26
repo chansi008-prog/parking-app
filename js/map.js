@@ -20,11 +20,11 @@ export function gridLabel(x, y) {
   return GRID_COLS[c] + (r + 1);
 }
 
-const PIN = `<svg viewBox="0 0 40 52" width="40" height="52"><path d="M20 50C20 50 37 31 37 18A17 17 0 0 0 3 18C3 31 20 50 20 50Z" fill="var(--pin,#E0362C)" stroke="#fff" stroke-width="3"/><circle cx="20" cy="18" r="6.5" fill="#fff"/></svg>`;
+const PIN = `<svg viewBox="0 0 40 52" width="40" height="52"><path d="M20 50C20 50 37 31 37 18A17 17 0 0 0 3 18C3 31 20 50 20 50Z" fill="var(--pin,#E0362C)" stroke="#fff" stroke-width="3"/><circle class="pin-dot" cx="20" cy="18" r="6.5" fill="#fff"/><path class="pin-ev" d="M22 7 13 20h6l-2 10 9-13h-6z" fill="#FFD43B" stroke="#fff" stroke-width="1"/></svg>`;
 
 /**
- * mountMap(host, { src, pin:{x,y}|null, editable, tint, onPick(x,y), focus })
- * 돌려주는 값: { setPin(x,y), zoomBy(f), reset(), destroy() }
+ * mountMap(host, { src, pin:{x,y}|null, editable, tint, ev(충전 표시), onPick(x,y), focus })
+ * 돌려주는 값: { setPin(x,y), setEv(on), focusPin(), fit(), destroy() }
  */
 export function mountMap(host, opts) {
   host.classList.add('map');
@@ -34,6 +34,7 @@ export function mountMap(host, opts) {
   const img = inner.querySelector('img');
   const pinEl = inner.querySelector('.pin');
   if (opts.tint) pinEl.style.setProperty('--pin', opts.tint);
+  pinEl.classList.toggle('ev', !!opts.ev);
 
   let s = 1, tx = 0, ty = 0;       // 확대 배율·이동
   let base = 1, iw = 1, ih = 1;    // 화면에 꽉 맞춘 기본 배율, 사진 원래 크기
@@ -138,6 +139,7 @@ export function mountMap(host, opts) {
   ro.observe(host);
 
   return {
+    setEv(on) { pinEl.classList.toggle('ev', !!on); },
     setPin(x, y) { pin = x == null ? null : { x, y }; showPin(); },
     focusPin, fit,
     destroy() { alive = false; ro.disconnect(); },
