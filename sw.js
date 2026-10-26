@@ -1,6 +1,6 @@
 // 내 차 어디? 서비스 워커: 앱 파일을 미리 저장해 지하(신호 없음)에서도 열리게 한다
-const VERSION = "park-v2";
-const CORE = ["./", "index.html", "js/app.js", "js/store.js", "js/map.js", "js/img.js", "manifest.webmanifest", "icons/icon-192-v1.png", "icons/icon-512-v1.png", "icons/apple-touch-icon-v1.png"];
+const VERSION = "park-v3";
+const CORE = ["./", "index.html", "js/app.js", "js/store.js", "js/map.js", "js/img.js", "manifest.webmanifest", "icons/icon-192-v2.png", "icons/icon-512-v2.png", "icons/apple-touch-icon-v2.png"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(CORE.map(u => new Request(u, { cache: "reload" })))).then(() => self.skipWaiting()));
